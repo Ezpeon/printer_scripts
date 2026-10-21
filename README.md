@@ -36,6 +36,10 @@ python printerscript.py --printer_name YHK-T201 --image cat.jpg
 python printerscript.py --image cat.jpg --preview out.png
 ```
 
+**Wait until the printer stops before the next print.** The script ends as soon as the
+printer has taken the print in, often before the paper is done, and a new print cuts off the
+one still printing.
+
 | Option | What it prints |
 |---|---|
 | `--image cat.jpg` | A jpg or png, scaled to the paper's width. Greys become patterns of black dots. |
