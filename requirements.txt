@@ -1,0 +1,14 @@
+# Make the venv and install, from inside printer_scripts/:
+#   Windows:  py -3.14 -m venv .venv
+#             .venv\Scripts\python.exe -m pip install -r requirements.txt
+#   Linux:    python3 -m venv .venv
+#             .venv/bin/python -m pip install -r requirements.txt
+#
+# Pillow: opens the jpg/png and turns it into black-and-white dots. 10.1 added the
+# resizable built-in font that the test page uses (ImageFont.load_default(size=...)), the
+# newest feature we use.
+Pillow>=10.1
+# segno: turns a text into a QR code (for --qr). Pure Python, with no dependencies of its
+# own. Getting the QR encoding right is its job, not ours. Everything else is the standard
+# library.
+segno

@@ -1,0 +1,10 @@
+# A folder for your own files that stay out of git: notes, test pictures, previews.
+untracked/
+
+# Written by save_paired_devices.py: the Bluetooth addresses of your own devices.
+paired_devices.txt
+
+# Python
+.venv/
+__pycache__/
+*.pyc

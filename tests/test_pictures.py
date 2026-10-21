@@ -1,0 +1,133 @@
+"""Tests for src/pictures.py: from a jpg/png to black-and-white dots, and the test page.
+
+The tests make their own pictures.
+
+Run all the tests with tests\\run_all.py, or only these with tests\\test_pictures.py.
+"""
+
+import tempfile
+from pathlib import Path
+
+from PIL import Image
+
+from runner import run_tests
+import helpers  # noqa: F401  (makes src/ importable)
+from src import escpos, pictures
+
+
+def black_share(dots: Image.Image) -> float:
+    """How much of a black-and-white picture is black, from 0.0 to 1.0.
+
+    histogram() counts the pixels of each value: [0] is the number of black ones.
+    """
+    return dots.histogram()[0] / (dots.width * dots.height)
+
+
+# --- preparing the picture -------------------------------------------------------------------
+
+def test_fit_to_width_keeps_proportions():
+    assert pictures.fit_to_width(Image.new("L", (1000, 500)), 384).size == (384, 192)
+    assert pictures.fit_to_width(Image.new("L", (100, 300)), 576).size == (576, 1728)
+
+
+def test_dithering_makes_grey_from_dots():
+    """White stays white, black stays black, and mid-grey becomes about half black dots."""
+    assert black_share(pictures.prepare_picture(Image.new("L", (384, 50), 255), 384)) == 0.0
+    assert black_share(pictures.prepare_picture(Image.new("L", (384, 50), 0), 384)) == 1.0
+    grey = black_share(pictures.prepare_picture(Image.new("L", (384, 50), 128), 384))
+    assert 0.4 < grey < 0.6, grey
+
+
+def test_transparent_png_prints_white():
+    """Without putting it on white first, a transparent area could come out black."""
+    with tempfile.TemporaryDirectory() as folder:
+        path = Path(folder) / "transparent.png"
+        Image.new("RGBA", (16, 8), (0, 0, 0, 0)).save(path)  # black, but fully transparent
+        # getextrema() gives (darkest, lightest) pixel: (255, 255) means everything is white.
+        assert pictures.open_picture(path).getextrema() == (255, 255)
+
+
+def test_16_bit_png_keeps_its_greys():
+    """A 16-bit grey PNG used to print white: Pillow cut its values off instead of scaling."""
+    with tempfile.TemporaryDirectory() as folder:
+        path = Path(folder) / "grey16.png"
+        greys = Image.new("I;16", (3, 1))
+        for x, grey in enumerate((0, 128, 255)):
+            greys.putpixel((x, 0), grey * 257)  # the 16-bit version of 0, 128 and 255
+        greys.save(path)
+        assert list(pictures.open_picture(path).tobytes()) == [0, 128, 255]
+
+
+def test_sideways_phone_photo_is_turned():
+    """A photo stored sideways with an EXIF note "turn 90 degrees" comes out turned."""
+    with tempfile.TemporaryDirectory() as folder:
+        path = Path(folder) / "sideways.jpg"
+        exif = Image.Exif()
+        exif[0x0112] = 6  # the EXIF "Orientation" tag; 6 = turn 90 degrees clockwise
+        Image.new("RGB", (40, 20), "white").save(path, exif=exif.tobytes())
+        assert pictures.open_picture(path).size == (20, 40)
+
+
+# --- cleaning light greys (--clean_light) ------------------------------------------------------
+
+def test_clean_light_values():
+    """The example in clean_light()'s docstring: with 10 %, 128 -> 142, 200 -> 222, 235 -> 255."""
+    greys = Image.frombytes("L", (5, 1), bytes([0, 128, 200, 235, 255]))
+    assert list(pictures.clean_light(greys, 10).tobytes()) == [0, 142, 222, 255, 255]
+    assert pictures.clean_light(greys, 0).tobytes() == greys.tobytes()  # 0 = off: no change
+
+
+def test_clean_light_keeps_dark_darker():
+    """A darker grey never ends up lighter than a lighter one: shading keeps its order."""
+    all_greys = Image.frombytes("L", (256, 1), bytes(range(256)))
+    for percent in (1, 5, 10, 30, 99):
+        values = list(pictures.clean_light(all_greys, percent).tobytes())
+        assert values == sorted(values), percent
+
+
+def test_clean_light_refuses_bad_values():
+    for bad in (-1, 100, 150):
+        try:
+            pictures.clean_light(Image.new("L", (1, 1)), bad)
+        except ValueError:
+            pass
+        else:
+            raise AssertionError(f"no error for {bad}")
+
+
+def test_clean_light_removes_background_speckle():
+    """A flat grey-235 background (like a drawing's) prints as scattered dots unless cleaned."""
+    background = Image.new("L", (384, 100), 235)
+    assert black_share(pictures.prepare_picture(background, 384)) > 0.03
+    assert black_share(pictures.prepare_picture(background, 384, 10)) == 0.0
+
+
+# --- the test page ---------------------------------------------------------------------------
+
+def test_test_page():
+    for width in escpos.HEAD_WIDTHS:
+        page = pictures.make_test_page(width)
+        height = width * 3 // 4
+        assert page.size == (width, height) and page.mode == "L"
+        # The frame reaches all four corners.
+        for corner in [(0, 0), (width - 1, 0), (0, height - 1), (width - 1, height - 1)]:
+            assert page.getpixel(corner) == 0, (width, corner)
+        # "TOP LEFT" is written in the top-left area, inside the frame.
+        scale = width / 384
+        text_area = page.crop((round(8 * scale), round(8 * scale),
+                               round(130 * scale), round(36 * scale)))
+        assert text_area.getextrema()[0] == 0, width  # its darkest pixel is black
+        # The arrow points right: its tip is near the right, not near the left.
+        middle = round(height * 0.38)
+        assert page.getpixel((round(width * 0.85) - 2, middle)) == 0
+        assert page.getpixel((round(width * 0.15) - 3, middle)) == 255
+        # The ramp has real greys (not only black and white) before dithering...
+        ramp_row = round(height * 0.70)
+        greys = {page.getpixel((x, ramp_row)) for x in range(width)}
+        assert any(0 < grey < 255 for grey in greys), width
+        # ...and the prepared dots are the right width.
+        assert pictures.prepare_picture(page, width).width == width
+
+
+if __name__ == "__main__":
+    run_tests(globals())
