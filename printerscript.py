@@ -39,7 +39,7 @@ from PIL import ImageFont, UnidentifiedImageError
 
 from src.devices import ADDRESS_RE, DEFAULT_FILE, find_address, read_devices_file
 from src.escpos import DEFAULT_WIDTH, HEAD_WIDTHS, print_job
-from src.pictures import make_test_page, open_picture, prepare_picture, stack
+from src.pictures import make_test_page, open_picture, prepare_picture, stack, turn_to
 from src.printer import ERRORS, QUESTIONS, ask, connect, error_text, send_job
 from src.qr import QR_BORDER, make_qr_picture, qr_dots_per_square, qr_matrix
 from src.self_test import self_test_parts
@@ -141,6 +141,7 @@ def main() -> None:
                "  printerscript.py --printer_name YHK-T201 --status\n"
                "  printerscript.py --image cat.jpg --preview cat_preview.png\n"
                "  printerscript.py --image drawing.png --clean_light 10 --preview drawing.png\n"
+               "  printerscript.py --image wide_photo.jpg --portrait --preview photo.png\n"
                '  printerscript.py --text "Shopping:\\nmilk\\neggs" --preview list.png\n'
                "  printerscript.py --text_file list.txt --preview list.png\n"
                '  printerscript.py --qr "https://example.com" --qr_caption --preview qr.png\n'
@@ -190,6 +191,16 @@ def main() -> None:
                              "near-white background doesn't print as scattered dots (e.g. "
                              "10 for drawings; default 0 = off, which keeps the texture of "
                              "photos)")
+    # Mutually exclusive: argparse itself refuses "--portrait --landscape" with a message.
+    shape = parser.add_mutually_exclusive_group()
+    shape.add_argument("--portrait", action="store_true",
+                       help="with --image: if the picture is wider than tall, turn it a "
+                            "quarter turn clockwise, so its short side goes across the "
+                            "paper: it prints bigger, on more paper")
+    shape.add_argument("--landscape", action="store_true",
+                       help="with --image: the opposite: if the picture is taller than "
+                            "wide, turn it, so its long side goes across the paper: it "
+                            "prints smaller, on less paper")
     parser.add_argument("--qr_caption", action="store_true",
                         help="with --qr: also print the text under the code, for people "
                              "to read")
@@ -216,6 +227,8 @@ def main() -> None:
         parser.error("--qr is empty")
     if args.qr_caption and args.qr is None:
         parser.error("--qr_caption only works together with --qr")
+    if (args.portrait or args.landscape) and args.image is None:
+        parser.error("--portrait and --landscape only work together with --image")
     if args.self_test and args.clean_light:
         parser.error("--clean_light doesn't apply to --self_test: it has no photos")
     if not 6 <= args.text_size <= 400:
@@ -291,6 +304,10 @@ def main() -> None:
             sys.exit(f"{args.image} doesn't exist.")
         except UnidentifiedImageError:
             sys.exit(f"{args.image} isn't a picture this script can open (use a jpg or png).")
+        # After open_picture(), so a sideways phone photo is already upright (EXIF) and
+        # "wide" or "tall" means what you see on screen.
+        if args.portrait or args.landscape:
+            picture = turn_to(picture, "portrait" if args.portrait else "landscape")
     if picture is not None:
         parts = [prepare_picture(picture, args.width, args.clean_light)]
     try:

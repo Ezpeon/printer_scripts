@@ -124,6 +124,25 @@ def test_command_line_self_test():
         assert result.returncode == 2 and "doesn't apply to --self_test" in result.stderr
 
 
+def test_command_line_portrait_landscape():
+    with tempfile.TemporaryDirectory() as folder:
+        folder = Path(folder)
+        wide = folder / "wide.png"
+        Image.new("L", (40, 20), 255).save(wide)
+        # 40 x 20 turned to 20 x 40 is 384 x 768 dots; not turned, 384 x 192.
+        for option, size in [("--portrait", (384, 768)), ("--landscape", (384, 192))]:
+            preview = folder / "preview.png"
+            result = run_script("--image", str(wide), option, "--preview", str(preview))
+            assert result.returncode == 0, result.stderr
+            with Image.open(preview) as saved:
+                assert saved.size == size, option
+        for args, message in [(["--test_page", "--portrait"], "only work together with --image"),
+                              (["--image", str(wide), "--portrait", "--landscape"],
+                               "not allowed with")]:
+            result = run_script(*args, "--preview", str(folder / "x.png"))
+            assert result.returncode == 2 and message in result.stderr, (args, result.stderr)
+
+
 def test_command_line_messages():
     with tempfile.TemporaryDirectory() as folder:
         folder = Path(folder)

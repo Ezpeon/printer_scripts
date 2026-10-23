@@ -38,6 +38,25 @@ def open_picture(path: Path) -> Image.Image:
     return picture.convert("L")
 
 
+def turn_to(picture: Image.Image, shape: str) -> Image.Image:
+    """Turn the picture a quarter turn if that gives it `shape` on paper, else keep it.
+
+    The paper's width is fixed (384 dots), so the side that goes across decides the size:
+    - "portrait": taller than wide, short side across. A wide picture gets turned, and
+      prints bigger, on more paper. Example: 1600 x 900 -> 900 x 1600, which prints as
+      384 x 683 dots instead of 384 x 216.
+    - "landscape": the opposite, long side across. A tall picture gets turned, and prints
+      smaller, on less paper. Example: 900 x 1600 -> 1600 x 900, 384 x 216 dots.
+    A picture that already has that shape, or is square, stays as it is.
+    """
+    wide, tall = picture.width > picture.height, picture.height > picture.width
+    if (shape == "portrait" and wide) or (shape == "landscape" and tall):
+        # Pillow's ROTATE_270 turns 270 degrees anticlockwise, which is a quarter turn
+        # clockwise: the picture's top ends up along the right edge of the paper.
+        return picture.transpose(Image.Transpose.ROTATE_270)
+    return picture
+
+
 def fit_to_width(picture: Image.Image, width: int) -> Image.Image:
     """Scale the picture to `width` dots, keeping its proportions.
 

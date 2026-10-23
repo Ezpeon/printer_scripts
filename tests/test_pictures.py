@@ -30,6 +30,21 @@ def test_fit_to_width_keeps_proportions():
     assert pictures.fit_to_width(Image.new("L", (100, 300)), 576).size == (576, 1728)
 
 
+def test_turn_to():
+    """--portrait turns only wide pictures, --landscape only tall ones, neither a square."""
+    wide, tall, square = Image.new("L", (40, 20)), Image.new("L", (20, 40)), Image.new("L", (9, 9))
+    assert pictures.turn_to(wide, "portrait").size == (20, 40)
+    assert pictures.turn_to(tall, "portrait").size == (20, 40)
+    assert pictures.turn_to(tall, "landscape").size == (40, 20)
+    assert pictures.turn_to(wide, "landscape").size == (40, 20)
+    for shape in ("portrait", "landscape"):
+        assert pictures.turn_to(square, shape).size == (9, 9)
+    # Clockwise: the top-left corner ends up top right.
+    wide = Image.new("L", (40, 20), 255)
+    wide.putpixel((0, 0), 0)
+    assert pictures.turn_to(wide, "portrait").getpixel((19, 0)) == 0
+
+
 def test_dithering_makes_grey_from_dots():
     """White stays white, black stays black, and mid-grey becomes about half black dots."""
     assert black_share(pictures.prepare_picture(Image.new("L", (384, 50), 255), 384)) == 0.0

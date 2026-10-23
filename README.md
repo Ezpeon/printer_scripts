@@ -57,6 +57,8 @@ Extra options:
 | Option | What it does |
 |---|---|
 | `--clean_light 10` | With `--image`: turns near-white greys white, so a drawing's light background doesn't print as scattered dots. Default 0 (off), which keeps the texture of photos. |
+| `--portrait` | With `--image`: turns a wide picture a quarter turn clockwise, so its short side goes across the paper. It prints bigger, on more paper. A tall or square picture stays as it is. |
+| `--landscape` | With `--image`: the opposite. Turns a tall picture, so its long side goes across: smaller, on less paper. |
 | `--text_size 48` | Letter size for `--text`, `--text_file` and `--qr_caption`, in dots (8 dots = 1 mm). Default 32. |
 | `--font file.ttf` | Another font for text. Default: Arial (Windows), DejaVu Sans (Linux). |
 | `--qr_caption` | With `--qr`: also prints the text under the code. |
