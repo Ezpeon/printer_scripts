@@ -112,14 +112,15 @@ def font_for(text: str, args: argparse.Namespace) -> ImageFont.FreeTypeFont:
     return font
 
 
-def percent_option(text: str) -> float:
-    """Check --clean_light's value for argparse: a number from 0 up to (not including) 100."""
+def percent_option(text: str, below: float = 100) -> float:
+    """Check a percentage option's value for argparse: a number from 0 up to (not including)
+    `below`. That's 100 for --clean_light, and 50 for --contrast."""
     try:
         value = float(text)
     except ValueError:
         raise argparse.ArgumentTypeError(f"expected a number, got '{text}'")
-    if not 0 <= value < 100:
-        raise argparse.ArgumentTypeError(f"expected a number from 0 to 99, got {text}")
+    if not 0 <= value < below:
+        raise argparse.ArgumentTypeError(f"expected a number from 0 to {below - 1:g}, got {text}")
     return value
 
 
@@ -141,6 +142,7 @@ def main() -> None:
                "  printerscript.py --printer_name YHK-T201 --status\n"
                "  printerscript.py --image cat.jpg --preview cat_preview.png\n"
                "  printerscript.py --image drawing.png --clean_light 10 --preview drawing.png\n"
+               "  printerscript.py --image screenshot.png --contrast 1 --preview screenshot.png\n"
                "  printerscript.py --image wide_photo.jpg --portrait --preview photo.png\n"
                '  printerscript.py --text "Shopping:\\nmilk\\neggs" --preview list.png\n'
                "  printerscript.py --text_file list.txt --preview list.png\n"
@@ -191,6 +193,13 @@ def main() -> None:
                              "near-white background doesn't print as scattered dots (e.g. "
                              "10 for drawings; default 0 = off, which keeps the texture of "
                              "photos)")
+    # No default (None = off): 0 is a real setting here, see stretch_contrast().
+    parser.add_argument("--contrast", type=lambda text: percent_option(text, 50),
+                        metavar="PERCENT",
+                        help="spread the greys from black to white, so a dark or flat picture "
+                             "doesn't print as one dot pattern: the darkest and lightest "
+                             "PERCENT %% become pure black and white (e.g. 1; 0 stretches "
+                             "from the darkest pixel to the lightest; default: off)")
     # Mutually exclusive: argparse itself refuses "--portrait --landscape" with a message.
     shape = parser.add_mutually_exclusive_group()
     shape.add_argument("--portrait", action="store_true",
@@ -231,6 +240,8 @@ def main() -> None:
         parser.error("--portrait and --landscape only work together with --image")
     if args.self_test and args.clean_light:
         parser.error("--clean_light doesn't apply to --self_test: it has no photos")
+    if args.self_test and args.contrast is not None:
+        parser.error("--contrast doesn't apply to --self_test: it has no photos")
     if not 6 <= args.text_size <= 400:
         parser.error(f"--text_size must be between 6 and 400 dots, got {args.text_size}")
 
@@ -309,7 +320,7 @@ def main() -> None:
         if args.portrait or args.landscape:
             picture = turn_to(picture, "portrait" if args.portrait else "landscape")
     if picture is not None:
-        parts = [prepare_picture(picture, args.width, args.clean_light)]
+        parts = [prepare_picture(picture, args.width, args.clean_light, args.contrast)]
     try:
         job = print_job(*parts)  # the parts are printed back to back
     except ValueError as error:

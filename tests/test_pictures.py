@@ -117,6 +117,46 @@ def test_clean_light_removes_background_speckle():
     assert black_share(pictures.prepare_picture(background, 384, 10)) == 0.0
 
 
+# --- stretching the contrast (--contrast) ----------------------------------------------------
+
+def test_stretch_contrast_values():
+    """The example in stretch_contrast()'s docstring: greys 30-115 spread over 0-255."""
+    greys = Image.frombytes("L", (3, 1), bytes([30, 72, 115]))
+    assert list(pictures.stretch_contrast(greys, 0).tobytes()) == [0, 126, 255]
+
+
+def test_stretch_contrast_cuts_off_the_ends():
+    """One black and one white pixel stop the stretch at 0 %, but not at 1 %.
+
+    200 pixels: one black, 99 of grey 40, 99 of grey 80, one white. 1 % is 2 pixels at each
+    end: the black one and a 40 at the dark end, the white one and an 80 at the light end. So
+    the stretch goes from 40 (-> black) to 80 (-> white).
+    """
+    picture = Image.frombytes("L", (200, 1), bytes([0] + [40] * 99 + [80] * 99 + [255]))
+    # At 0 %, the greys already go from 0 to 255: nothing changes.
+    assert pictures.stretch_contrast(picture, 0).tobytes() == picture.tobytes()
+    assert list(pictures.stretch_contrast(picture, 1).tobytes()) == [0] * 100 + [255] * 100
+
+
+def test_stretch_contrast_refuses_bad_values():
+    for bad in (-1, 50, 60):
+        try:
+            pictures.stretch_contrast(Image.new("L", (1, 1)), bad)
+        except ValueError:
+            pass
+        else:
+            raise AssertionError(f"no error for {bad}")
+
+
+def test_contrast_separates_dark_greys():
+    """Greys 40 and 80 both print as mostly black dots; stretched, one half is black and the
+    other white. Without the option, prepare_picture() leaves the greys alone."""
+    dark = Image.new("L", (384, 100), 40)
+    dark.paste(80, (0, 50, 384, 100))
+    assert black_share(pictures.prepare_picture(dark, 384)) > 0.7
+    assert black_share(pictures.prepare_picture(dark, 384, contrast=0)) == 0.5
+
+
 # --- the test page ---------------------------------------------------------------------------
 
 def test_test_page():

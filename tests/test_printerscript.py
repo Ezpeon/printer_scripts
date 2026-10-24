@@ -120,8 +120,9 @@ def test_command_line_self_test():
         assert result.returncode == 0 and "7 parts" in result.stdout, result.stderr
         with Image.open(preview) as saved:
             assert saved.width == 384 and saved.height > 1500  # about 20 cm
-        result = run_script("--self_test", "--clean_light", "5", "--preview", str(preview))
-        assert result.returncode == 2 and "doesn't apply to --self_test" in result.stderr
+        for option in ("--clean_light", "--contrast"):
+            result = run_script("--self_test", option, "5", "--preview", str(preview))
+            assert result.returncode == 2 and "doesn't apply to --self_test" in result.stderr
 
 
 def test_command_line_portrait_landscape():
@@ -141,6 +142,22 @@ def test_command_line_portrait_landscape():
                                "not allowed with")]:
             result = run_script(*args, "--preview", str(folder / "x.png"))
             assert result.returncode == 2 and message in result.stderr, (args, result.stderr)
+
+
+def test_command_line_contrast():
+    with tempfile.TemporaryDirectory() as folder:
+        folder = Path(folder)
+        # Two dark greys, 40 on top and 80 below: stretched, the top prints black and the
+        # bottom white.
+        dark = folder / "dark.png"
+        picture = Image.new("L", (384, 100), 40)
+        picture.paste(80, (0, 50, 384, 100))
+        picture.save(dark)
+        preview = folder / "preview.png"
+        result = run_script("--image", str(dark), "--contrast", "0", "--preview", str(preview))
+        assert result.returncode == 0, result.stderr
+        with Image.open(preview) as saved:
+            assert saved.getpixel((0, 0)) == 0 and saved.getpixel((0, 99)) == 255
 
 
 def test_command_line_messages():
@@ -167,10 +184,12 @@ def test_command_line_messages():
         # --status has nothing to preview.
         result = run_script("--status", "--preview", str(folder / "x.png"))
         assert result.returncode == 2 and "nothing to preview" in result.stderr, result.stderr
-        # --clean_light outside 0-99, or not a number.
-        for bad, message in [("100", "from 0 to 99"), ("abc", "expected a number")]:
-            result = run_script("--test_page", "--clean_light", bad, "--preview",
-                                str(folder / "x.png"))
+        # --clean_light outside 0-99, --contrast outside 0-49, or not a number.
+        for option, bad, message in [("--clean_light", "100", "from 0 to 99"),
+                                     ("--clean_light", "abc", "expected a number"),
+                                     ("--contrast", "50", "from 0 to 49"),
+                                     ("--contrast", "abc", "expected a number")]:
+            result = run_script("--test_page", option, bad, "--preview", str(folder / "x.png"))
             assert result.returncode == 2 and message in result.stderr, result.stderr
 
 

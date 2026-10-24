@@ -88,6 +88,25 @@ def clean_light(picture: Image.Image, percent: float) -> Image.Image:
     return picture.point(table)
 
 
+def stretch_contrast(picture: Image.Image, percent: float) -> Image.Image:
+    """Spread the greys from black to white, for dark or flat pictures.
+
+    Why: when all the greys sit close together (a dark game screenshot, a beige coin on a
+    beige wall), they all become similar dot patterns on paper. Stretching them apart makes
+    the differences visible. Example: greys from 30 to 115 are spread over 0 to 255, so each
+    step of 1 becomes 3: 30 -> 0, 72 -> 126, 115 -> 255.
+
+    `percent` % of the pixels at each end are allowed to turn pure black or pure white, and
+    the stretch starts from the next ones. Why: a few pixels that are already black or white
+    (like white text on a dark screenshot) would otherwise make the range 0 to 255 already,
+    and nothing would change. 1 is a good start; 0 stretches from the darkest pixel to the
+    lightest. 50 or more would cut off everything from both ends, so it's refused.
+    """
+    if not 0 <= percent < 50:
+        raise ValueError(f"contrast must be at least 0 and less than 50, got {percent}")
+    return ImageOps.autocontrast(picture, cutoff=percent)
+
+
 def to_dots(picture: Image.Image) -> Image.Image:
     """Turn a greyscale picture into black-and-white dots (mode "1") by dithering.
 
@@ -98,13 +117,24 @@ def to_dots(picture: Image.Image) -> Image.Image:
     return picture.convert("1", dither=Image.Dither.FLOYDSTEINBERG)
 
 
-def prepare_picture(picture: Image.Image, width: int, light_to_clean: float = 0) -> Image.Image:
+def prepare_picture(picture: Image.Image, width: int, light_to_clean: float = 0,
+                    contrast: float | None = None) -> Image.Image:
     """Greyscale picture -> black-and-white dots, `width` dots wide.
 
-    The cleaning comes after the resizing: shrinking averages neighbouring pixels, which
-    already smooths out some of the JPEG noise in light areas.
+    `contrast` is stretch_contrast()'s percent. None (the default) leaves the greys as they
+    are; 0 can't mean "off" here, because 0 % is a real stretch.
+
+    The order:
+    1. Resize first: shrinking averages neighbouring pixels, which already smooths out some
+       of the JPEG noise in light areas, and single stray pixels that would hold back the
+       contrast stretch.
+    2. Then the contrast stretch, then the cleaning: "within N % of white" should mean white
+       on paper, so the cleaning looks at the stretched greys.
     """
-    return to_dots(clean_light(fit_to_width(picture, width), light_to_clean))
+    picture = fit_to_width(picture, width)
+    if contrast is not None:
+        picture = stretch_contrast(picture, contrast)
+    return to_dots(clean_light(picture, light_to_clean))
 
 
 def stack(*pictures: Image.Image) -> Image.Image:
