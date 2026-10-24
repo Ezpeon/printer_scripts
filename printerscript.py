@@ -4,7 +4,7 @@
 
 How it works:
 1. The printer's name is looked up in paired_devices.txt, written by save_paired_devices.py,
-   to find its Bluetooth address.
+   to find its Bluetooth address. Without --printer_name, the first device in it is used.
 2. The picture becomes black-and-white dots, as wide as the print head (384 or 576 dots).
 3. The dots are sent to the printer as ESC/POS commands, over Bluetooth.
 
@@ -53,7 +53,8 @@ SUDOKU_LEVELS = list(DIFFICULTIES.values())  # easy, medium, hard
 
 
 def printer_address(args: argparse.Namespace) -> tuple[str, str]:
-    """Return (what to call the printer, its address) from --address or --printer_name."""
+    """Return (what to call the printer, its address) from --address or --printer_name, or
+    else the first device in paired_devices.txt."""
     if args.address:
         address = args.address.strip().upper()
         if not ADDRESS_RE.match(address):
@@ -64,10 +65,20 @@ def printer_address(args: argparse.Namespace) -> tuple[str, str]:
         sys.exit(f"{args.devices_file} doesn't exist yet. Pair the printer in the system's "
                  "Bluetooth settings, then run save_paired_devices.py.")
     try:
-        return args.printer_name, find_address(read_devices_file(args.devices_file),
-                                               args.printer_name)
+        devices = read_devices_file(args.devices_file)
+        if args.printer_name:
+            return args.printer_name, find_address(devices, args.printer_name)
     except (ValueError, LookupError) as error:
         sys.exit(str(error))
+    if not devices:
+        sys.exit(f"{args.devices_file} has no devices. Pair the printer in the system's "
+                 "Bluetooth settings, then run save_paired_devices.py again.")
+    # The file is sorted by name, so with several paired devices the first one may be a phone
+    # or headphones, not the printer: say which one it is.
+    name, address = devices[0]
+    print(f"No --printer_name given: using {name}, the first device in "
+          f"{args.devices_file.name}.")
+    return name, address
 
 
 def open_connection(printer: str, address: str) -> socket.socket:
@@ -213,7 +224,8 @@ def main() -> None:
                            "battery, serial number and paper state, and show the answers")
     which = parser.add_mutually_exclusive_group()
     which.add_argument("--printer_name", metavar="NAME",
-                       help="the printer's Bluetooth name, as in paired_devices.txt")
+                       help="the printer's Bluetooth name, as in paired_devices.txt "
+                            "(default: the first device in it)")
     which.add_argument("--address", metavar="AA:BB:CC:DD:EE:FF",
                        help="the printer's Bluetooth address, instead of its name")
     parser.add_argument("--preview", type=Path, metavar="PNG",
@@ -272,8 +284,6 @@ def main() -> None:
     args = parser.parse_args()
     if args.status and args.preview is not None:
         parser.error("--status asks the printer questions: it has nothing to preview")
-    if args.preview is None and not args.suggest and not (args.printer_name or args.address):
-        parser.error("say which printer (--printer_name or --address), or use --preview")
     if args.text is not None and not args.text.strip():
         parser.error("--text is empty")
     if args.qr is not None and not args.qr.strip():

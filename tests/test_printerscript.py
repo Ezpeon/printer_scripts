@@ -245,9 +245,12 @@ def test_command_line_messages():
         not_a_picture.write_text("hello", encoding="utf-8")
         result = run_script("--image", str(not_a_picture), "--preview", str(folder / "x.png"))
         assert result.returncode == 1 and "isn't a picture" in result.stderr, result.stderr
-        # No printer and no --preview.
-        result = run_script("--test_page")
-        assert result.returncode == 2 and "--preview" in result.stderr, result.stderr
+        # No printer name, and no devices to take the first of. (A test never relies on the
+        # real paired_devices.txt: it would connect to the real printer.)
+        no_devices = folder / "no_devices.txt"
+        no_devices.write_text("# Paired Bluetooth devices\n", encoding="utf-8")
+        result = run_script("--test_page", "--devices_file", str(no_devices))
+        assert result.returncode == 1 and "has no devices" in result.stderr, result.stderr
         # --status has nothing to preview.
         result = run_script("--status", "--preview", str(folder / "x.png"))
         assert result.returncode == 2 and "nothing to preview" in result.stderr, result.stderr

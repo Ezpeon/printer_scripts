@@ -28,10 +28,13 @@ The examples here write `python` for short. Use `.venv\Scripts\python.exe` on Wi
 
 ## Printing
 
-Each command prints **one** of the things below. Add `--printer_name NAME` (the name in
-`paired_devices.txt`) to print it, or `--preview out.png` to only see it.
+Each command prints **one** of the things below, on the first device in
+`paired_devices.txt`. That file is sorted by name, so if you've paired other devices too
+(a phone, headphones), choose the printer with `--printer_name NAME` (its name in the file).
+Add `--preview out.png` to only see what would be printed.
 
 ```
+python printerscript.py --image cat.jpg
 python printerscript.py --printer_name YHK-T201 --image cat.jpg
 python printerscript.py --image cat.jpg --preview out.png
 ```
