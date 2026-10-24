@@ -27,6 +27,32 @@ def test_file_round_trip():
         path = Path(folder) / "paired_devices.txt"
         devices.write_devices_file(path, listed)
         assert sorted(devices.read_devices_file(path)) == sorted(listed)
+        # The empty "default =" line, for the user to fill, is there but isn't a device.
+        assert "\ndefault =\n" in path.read_text(encoding="utf-8")
+        assert devices.read_default_printer(path) is None
+        # With a default printer, even one with "=" in its name.
+        devices.write_devices_file(path, listed, "A=B printer")
+        assert sorted(devices.read_devices_file(path)) == sorted(listed)
+        assert devices.read_default_printer(path) == "A=B printer"
+
+
+def test_default_printer_line():
+    """Typed by hand: any case and spacing. An address after "default =" makes it a device
+    called "default". Files from before the default line have none."""
+    for text, default in [("DEFAULT=YHK-T201\n", "YHK-T201"),
+                          ("  default   =   YHK-T201  \n", "YHK-T201"),
+                          ("default =\n", None),
+                          ("default = AA:BB:CC:DD:EE:FF\n", None),
+                          ("YHK-T201 = AA:BB:CC:DD:EE:01\n", None)]:
+        with tempfile.TemporaryDirectory() as folder:
+            path = Path(folder) / "paired_devices.txt"
+            path.write_text(text, encoding="utf-8")
+            assert devices.read_default_printer(path) == default, text
+    with tempfile.TemporaryDirectory() as folder:
+        path = Path(folder) / "paired_devices.txt"
+        path.write_text("default = AA:BB:CC:DD:EE:FF\ndefault = YHK-T201\n", encoding="utf-8")
+        assert devices.read_devices_file(path) == [("default", "AA:BB:CC:DD:EE:FF")]
+        assert devices.read_default_printer(path) == "YHK-T201"
 
 
 def test_read_skips_comments_and_tidies_up():
@@ -37,6 +63,9 @@ def test_read_skips_comments_and_tidies_up():
     with tempfile.TemporaryDirectory() as folder:
         path = Path(folder) / "paired_devices.txt"
         path.write_text(text, encoding="utf-8")
+        assert devices.read_devices_file(path) == [("My printer", "AA:BB:CC:DD:EE:FF")]
+        # Saved by an editor that adds a BOM at the start (some Windows ones do).
+        path.write_text(text, encoding="utf-8-sig")
         assert devices.read_devices_file(path) == [("My printer", "AA:BB:CC:DD:EE:FF")]
 
 

@@ -251,6 +251,10 @@ def test_command_line_messages():
         no_devices.write_text("# Paired Bluetooth devices\n", encoding="utf-8")
         result = run_script("--test_page", "--devices_file", str(no_devices))
         assert result.returncode == 1 and "has no devices" in result.stderr, result.stderr
+        # A default printer that isn't in the list: the message says where the name came from.
+        devices.write_text("default = YHK-T999\nYHK-T201 = AA:BB:CC:DD:EE:01\n", encoding="utf-8")
+        result = run_script("--test_page", "--devices_file", str(devices))
+        assert result.returncode == 1 and "is the default printer in" in result.stderr, result
         # --status has nothing to preview.
         result = run_script("--status", "--preview", str(folder / "x.png"))
         assert result.returncode == 2 and "nothing to preview" in result.stderr, result.stderr

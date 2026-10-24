@@ -2,6 +2,14 @@
 
 save_paired_devices.py writes it (with the names and addresses from paired_windows.py or
 paired_linux.py), and printerscript.py reads it to find the printer's address by its name.
+
+It also has one line the user fills in: "default = NAME", the printer to use when no
+--printer_name is given. Example file:
+
+    # Paired Bluetooth devices, ...
+    default = YHK-T201
+    Example phone = 11:22:33:44:55:66
+    YHK-T201 = AA:BB:CC:DD:EE:01
 """
 
 from __future__ import annotations
@@ -28,12 +36,17 @@ def clean_name(name: str) -> str:
     return cleaned or "(no name)"
 
 
-def write_devices_file(path: Path, devices: list[tuple[str, str]]) -> None:
-    """Write one "name = address" line per device, sorted by name, after two comment lines."""
+def write_devices_file(path: Path, devices: list[tuple[str, str]],
+                       default_printer: str | None = None) -> None:
+    """Write one "name = address" line per device, sorted by name, after some comment lines
+    and the "default = NAME" line (empty if there's no default printer, for the user to fill)."""
     today = datetime.date.today().isoformat()
     lines = [
         f"# Paired Bluetooth devices, written by save_paired_devices.py on {today}.",
         "# One per line: name = address. Run save_paired_devices.py again after pairing a new device.",
+        "# The printer to use without --printer_name: paste its name after \"default =\" (without",
+        "# one, the first device is used). save_paired_devices.py keeps it.",
+        f"default = {default_printer or ''}".rstrip(),
     ]
     for name, address in sorted(devices, key=lambda device: (device[0].lower(), device[1])):
         lines.append(f"{name} = {address}")
@@ -42,13 +55,41 @@ def write_devices_file(path: Path, devices: list[tuple[str, str]]) -> None:
     path.write_text("\n".join(lines) + "\n", encoding="utf-8")
 
 
+def _default_line_value(line: str) -> str | None:
+    """If `line` is the "default = NAME" line, return NAME ("" if it's empty), else None.
+
+    "default" is matched in any case, and NAME is everything after the first "=", so it may
+    contain "=" itself. But "default = AA:BB:CC:DD:EE:FF" is a device called "default".
+    """
+    key, equals, value = line.partition("=")
+    value = value.strip()
+    if not equals or key.strip().casefold() != "default" or ADDRESS_RE.match(value.upper()):
+        return None
+    return value
+
+
+def read_default_printer(path: Path) -> str | None:
+    """The name on the file's "default = NAME" line, or None if it's empty or missing.
+
+    Separate from read_devices_file(), so save_paired_devices.py can keep the default even
+    when another line of the old file is broken.
+    """
+    for line in path.read_text(encoding="utf-8-sig").splitlines():
+        value = _default_line_value(line)
+        if value is not None:
+            return value or None
+    return None
+
+
 def read_devices_file(path: Path) -> list[tuple[str, str]]:
     """Read the file back as a list of (name, address). Raises ValueError on a bad line."""
     devices = []
-    for number, line in enumerate(path.read_text(encoding="utf-8").splitlines(), start=1):
+    # "utf-8-sig": like UTF-8, but drops the 3 invisible bytes (a "BOM") that some Windows
+    # editors put at the start of a file, which would otherwise hide the first line's "#".
+    for number, line in enumerate(path.read_text(encoding="utf-8-sig").splitlines(), start=1):
         line = line.strip()
-        if not line or line.startswith("#"):
-            continue  # an empty line or a comment
+        if not line or line.startswith("#") or _default_line_value(line) is not None:
+            continue  # an empty line, a comment, or the default printer
         # Split at the LAST "=": a name may contain "=", an address never does.
         # Example: "A=B printer = AA:BB:CC:DD:EE:FF" -> name "A=B printer".
         name, equals, address = line.rpartition("=")

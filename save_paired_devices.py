@@ -5,7 +5,8 @@ their printer by its name (like YHK-T201). This script asks the operating system
 devices are paired, and writes one "name = address" line per device. printerscript.py then
 looks the name up in that file, without asking the system again.
 
-Run it again after pairing a new device: it rewrites the whole file.
+Run it again after pairing a new device: it rewrites the whole file, keeping only the
+default printer you wrote in it ("default = NAME").
 
 Works on:
 - Windows: reads the list that Windows keeps in the registry (no admin rights needed).
@@ -29,7 +30,7 @@ import argparse
 import sys
 from pathlib import Path
 
-from src.devices import DEFAULT_FILE, write_devices_file
+from src.devices import DEFAULT_FILE, read_default_printer, write_devices_file
 from src.paired_linux import BluetoothctlError, paired_devices_linux
 from src.paired_windows import paired_devices_windows
 
@@ -73,8 +74,13 @@ def main() -> None:
             print(f'Note: {names.count(name)} devices are called "{name}". To print to one of '
                   'them, give printerscript.py its address with --address.')
 
-    write_devices_file(args.output, devices)
+    # The whole file is rewritten, so the default printer the user wrote in it is read first
+    # and written back.
+    default_printer = read_default_printer(args.output) if args.output.is_file() else None
+    write_devices_file(args.output, devices, default_printer)
     print(f"Wrote {args.output}")
+    if default_printer:
+        print(f"Kept the default printer: {default_printer}")
 
 
 if __name__ == "__main__":

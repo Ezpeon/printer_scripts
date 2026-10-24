@@ -23,15 +23,18 @@ device:
 python save_paired_devices.py
 ```
 
+Then open `paired_devices.txt` and paste your printer's name after `default =`, e.g.
+`default = YHK-T201`. Saving the list again keeps that line.
+
 The examples here write `python` for short. Use `.venv\Scripts\python.exe` on Windows and
 `.venv/bin/python` on Linux.
 
 ## Printing
 
-Each command prints **one** of the things below, on the first device in
-`paired_devices.txt`. That file is sorted by name, so if you've paired other devices too
-(a phone, headphones), choose the printer with `--printer_name NAME` (its name in the file).
-Add `--preview out.png` to only see what would be printed.
+Each command prints **one** of the things below, on the default printer from
+`paired_devices.txt` (its `default =` line). Without one, it uses the first device in the
+file, which may be a phone or headphones if you've paired those too. `--printer_name NAME`
+chooses a printer for one print. Add `--preview out.png` to only see what would be printed.
 
 ```
 python printerscript.py --image cat.jpg

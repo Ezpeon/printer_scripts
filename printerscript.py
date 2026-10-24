@@ -4,7 +4,8 @@
 
 How it works:
 1. The printer's name is looked up in paired_devices.txt, written by save_paired_devices.py,
-   to find its Bluetooth address. Without --printer_name, the first device in it is used.
+   to find its Bluetooth address. Without --printer_name: the printer named on its
+   "default = NAME" line, or else its first device.
 2. The picture becomes black-and-white dots, as wide as the print head (384 or 576 dots).
 3. The dots are sent to the printer as ESC/POS commands, over Bluetooth.
 
@@ -37,7 +38,8 @@ from pathlib import Path
 
 from PIL import ImageFont, UnidentifiedImageError
 
-from src.devices import ADDRESS_RE, DEFAULT_FILE, find_address, read_devices_file
+from src.devices import (ADDRESS_RE, DEFAULT_FILE, find_address, read_default_printer,
+                         read_devices_file)
 from src.escpos import DEFAULT_WIDTH, HEAD_WIDTHS, print_job
 from src.pictures import (CHANNELS, make_test_page, open_colour_picture, prepare_picture, stack,
                           to_grey, turn_to)
@@ -54,7 +56,7 @@ SUDOKU_LEVELS = list(DIFFICULTIES.values())  # easy, medium, hard
 
 def printer_address(args: argparse.Namespace) -> tuple[str, str]:
     """Return (what to call the printer, its address) from --address or --printer_name, or
-    else the first device in paired_devices.txt."""
+    else from paired_devices.txt: its "default = NAME" line, or else its first device."""
     if args.address:
         address = args.address.strip().upper()
         if not ADDRESS_RE.match(address):
@@ -66,18 +68,28 @@ def printer_address(args: argparse.Namespace) -> tuple[str, str]:
                  "Bluetooth settings, then run save_paired_devices.py.")
     try:
         devices = read_devices_file(args.devices_file)
-        if args.printer_name:
-            return args.printer_name, find_address(devices, args.printer_name)
-    except (ValueError, LookupError) as error:
+    except ValueError as error:
         sys.exit(str(error))
+    file_name = args.devices_file.name
+    name = args.printer_name or read_default_printer(args.devices_file)
+    if name:
+        try:
+            address = find_address(devices, name)
+        except LookupError as error:
+            # Say where the name came from, if it wasn't typed.
+            sys.exit(str(error) if args.printer_name
+                     else f'{error} ("{name}" is the default printer in {file_name}.)')
+        if not args.printer_name:
+            print(f"No --printer_name given: using {name}, the default printer in {file_name}.")
+        return name, address
     if not devices:
         sys.exit(f"{args.devices_file} has no devices. Pair the printer in the system's "
                  "Bluetooth settings, then run save_paired_devices.py again.")
     # The file is sorted by name, so with several paired devices the first one may be a phone
-    # or headphones, not the printer: say which one it is.
+    # or headphones, not the printer: say which one it is, and how to choose.
     name, address = devices[0]
-    print(f"No --printer_name given: using {name}, the first device in "
-          f"{args.devices_file.name}.")
+    print(f"No --printer_name given: using {name}, the first device in {file_name}. To choose "
+          'another, write its name after "default =" in that file.')
     return name, address
 
 
@@ -225,7 +237,8 @@ def main() -> None:
     which = parser.add_mutually_exclusive_group()
     which.add_argument("--printer_name", metavar="NAME",
                        help="the printer's Bluetooth name, as in paired_devices.txt "
-                            "(default: the first device in it)")
+                            '(default: the name after "default =" in that file, or else its '
+                            "first device)")
     which.add_argument("--address", metavar="AA:BB:CC:DD:EE:FF",
                        help="the printer's Bluetooth address, instead of its name")
     parser.add_argument("--preview", type=Path, metavar="PNG",
