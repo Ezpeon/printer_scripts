@@ -1,7 +1,7 @@
 """Which Bluetooth devices are paired, on Linux: asked to bluetoothctl.
 
 bluetoothctl is the command-line tool of BlueZ, the standard Linux Bluetooth software. It
-works as a normal user. NOT TESTED on a real Linux machine yet.
+works as a normal user. Tried on a real Linux machine with the printer (2026-10-24).
 """
 
 from __future__ import annotations

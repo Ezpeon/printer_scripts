@@ -11,7 +11,7 @@ default printer you wrote in it ("default = NAME").
 Works on:
 - Windows: reads the list that Windows keeps in the registry (no admin rights needed).
 - Linux: asks bluetoothctl, the command-line tool of BlueZ (the standard Linux Bluetooth
-  software). NOT TESTED on a real Linux machine yet.
+  software).
 
 Only classic Bluetooth devices are saved. The printer uses classic Bluetooth (the "serial
 port" profile, SPP), and a Bluetooth Low Energy address can't be used for that.

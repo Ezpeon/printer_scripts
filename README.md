@@ -4,8 +4,8 @@ Print pictures, text, QR codes and sudokus on a small Bluetooth thermal printer 
 understands ESC/POS (the command language of most receipt printers), from Windows or Linux.
 No phone needed.
 
-> **Status (2026-10-20):** printing works on Windows, tried on the real printer. Linux is
-> untested. The printer prints about 5 mm a second: a 25 cm print takes about a minute.
+> **Status (2026-10-24):** printing works on Windows and Linux, tried on the real printer.
+> The printer prints about 5 mm a second: a 25 cm print takes about a minute.
 
 ## Setup (once)
 
