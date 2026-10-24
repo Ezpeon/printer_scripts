@@ -124,17 +124,22 @@ def options_text(setting: Setting) -> str:
     return " ".join(options) or "no options"
 
 
+def usual_setting(settings: list[Setting]) -> Setting:
+    """The setting with no options, to compare the others with."""
+    return next(s for s in settings if s.channel is None and s.contrast is None)
+
+
 def show_suggestions(settings: list[Setting]) -> None:
     """--suggest: the 5 best settings, the usual one (no options) to compare, and the pick."""
     print("Score: how much of the picture's colour differences stay visible on paper, from 0 "
           "to 1. Black dots: less prints faster and uses less battery.")
     print("  score  black dots  options")
-    usual = next(s for s in settings if s.channel is None and s.contrast is None)
+    usual = usual_setting(settings)
     shown = settings[:5] + ([usual] if usual not in settings[:5] else [])
     for setting in shown:
         print(f"  {setting.score:5.2f}  {setting.black:10.0%}  {options_text(setting)}")
-    print(f"Best: {options_text(best_setting(settings))}. (Scores within 0.02 of the top look "
-          "the same on paper: of those, the one with the fewest options.)")
+    print(f"Best: {options_text(best_setting(settings))}, which --auto uses. (Scores within 0.02 "
+          "of the top look the same on paper: of those, the one with the fewest options.)")
 
 
 def percent_option(text: str, below: float = 100) -> float:
@@ -168,6 +173,7 @@ def main() -> None:
                "  printerscript.py --image cat.jpg --preview cat_preview.png\n"
                "  printerscript.py --image drawing.png --clean_light 10 --preview drawing.png\n"
                "  printerscript.py --image game.png --suggest\n"
+               "  printerscript.py --image game.png --auto --preview out.png\n"
                "  printerscript.py --image game.png --channel red --contrast 1 --preview out.png\n"
                "  printerscript.py --image wide_photo.jpg --portrait --preview photo.png\n"
                '  printerscript.py --text "Shopping:\\nmilk\\neggs" --preview list.png\n'
@@ -230,10 +236,14 @@ def main() -> None:
                         help="with --image: make the greys from this colour alone, instead "
                              "of the usual mix of all three, for pictures where two "
                              "different colours print as the same grey")
-    parser.add_argument("--suggest", action="store_true",
-                        help="with --image: don't print, but try every --channel and "
-                             "--contrast setting and show which keep the most of the "
-                             "picture's colour differences visible on paper")
+    pick = parser.add_mutually_exclusive_group()
+    pick.add_argument("--suggest", action="store_true",
+                      help="with --image: don't print, but try every --channel and --contrast "
+                           "setting and show which keep the most of the picture's colour "
+                           "differences visible on paper")
+    pick.add_argument("--auto", action="store_true",
+                      help="with --image: use the setting --suggest would pick, and say "
+                           "which it is")
     # Mutually exclusive: argparse itself refuses "--portrait --landscape" with a message.
     shape = parser.add_mutually_exclusive_group()
     shape.add_argument("--portrait", action="store_true",
@@ -274,10 +284,11 @@ def main() -> None:
         parser.error("--portrait and --landscape only work together with --image")
     if args.channel and args.image is None:
         parser.error("--channel only works together with --image")
-    if args.suggest and args.image is None:
-        parser.error("--suggest only works together with --image")
-    if args.suggest and (args.channel or args.contrast is not None):
-        parser.error("--suggest tries every --channel and --contrast itself: leave them out")
+    if (args.suggest or args.auto) and args.image is None:
+        parser.error("--suggest and --auto only work together with --image")
+    if (args.suggest or args.auto) and (args.channel or args.contrast is not None):
+        parser.error("--suggest and --auto try every --channel and --contrast themselves: "
+                     "leave them out")
     if args.self_test and args.clean_light:
         parser.error("--clean_light doesn't apply to --self_test: it has no photos")
     if args.self_test and args.contrast is not None:
@@ -360,9 +371,19 @@ def main() -> None:
         if args.portrait or args.landscape:
             colour = turn_to(colour, "portrait" if args.portrait else "landscape")
         # After turning, which changes how much the picture is shrunk, so the scores too.
-        if args.suggest:
-            show_suggestions(rank_settings(colour, args.width, args.clean_light))
-            return
+        if args.suggest or args.auto:
+            settings = rank_settings(colour, args.width, args.clean_light)
+            if args.suggest:
+                show_suggestions(settings)
+                return
+            best, usual = best_setting(settings), usual_setting(settings)
+            if best == usual:
+                print(f"--auto: no options needed (score {best.score:.2f}).")
+            else:
+                print(f"--auto: {options_text(best)} (score {best.score:.2f}, against "
+                      f"{usual.score:.2f} with no options).")
+            # From here on, as if the user had typed them.
+            args.channel, args.contrast = best.channel, best.contrast
         picture = to_grey(colour, args.channel)
     if picture is not None:
         parts = [prepare_picture(picture, args.width, args.clean_light, args.contrast)]
