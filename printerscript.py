@@ -40,7 +40,7 @@ from PIL import ImageFont, UnidentifiedImageError
 
 from src.devices import (ADDRESS_RE, DEFAULT_FILE, find_address, read_default_printer,
                          read_devices_file)
-from src.escpos import DEFAULT_WIDTH, HEAD_WIDTHS, print_job
+from src.escpos import DEFAULT_DARKNESS, DEFAULT_WIDTH, HEAD_WIDTHS, print_job
 from src.pictures import (CHANNELS, make_test_page, open_colour_picture, prepare_picture, stack,
                           to_grey, turn_to)
 from src.printer import ERRORS, QUESTIONS, ask, connect, error_text, send_job
@@ -245,6 +245,10 @@ def main() -> None:
                         help="don't print: save what would be printed as a PNG instead")
     parser.add_argument("--width", type=int, choices=HEAD_WIDTHS, default=DEFAULT_WIDTH,
                         help="dots per row of the print head (default: %(default)s)")
+    parser.add_argument("--darkness", type=int, default=DEFAULT_DARKNESS, metavar="N",
+                        help="how long the printer heats each dot, 1-40: higher is darker, "
+                             "slower and uses more battery. Only on paper: --preview can't "
+                             "show it (default: %(default)s)")
     parser.add_argument("--clean_light", type=percent_option, default=0, metavar="PERCENT",
                         help="turn greys within PERCENT %% of white into white, so a "
                              "near-white background doesn't print as scattered dots (e.g. "
@@ -319,6 +323,10 @@ def main() -> None:
         parser.error("--clean_light doesn't apply to --self_test: it has no photos")
     if args.self_test and args.contrast is not None:
         parser.error("--contrast doesn't apply to --self_test: it has no photos")
+    # Up to 40: more heat than that hasn't been tried on a real printer, and heating longer
+    # drains the battery and heats up the print head.
+    if not 1 <= args.darkness <= 40:
+        parser.error(f"--darkness must be between 1 and 40, got {args.darkness}")
     if not 6 <= args.text_size <= 400:
         parser.error(f"--text_size must be between 6 and 400 dots, got {args.text_size}")
 
@@ -414,7 +422,7 @@ def main() -> None:
     if picture is not None:
         parts = [prepare_picture(picture, args.width, args.clean_light, args.contrast)]
     try:
-        job = print_job(*parts)  # the parts are printed back to back
+        job = print_job(*parts, darkness=args.darkness)  # the parts print back to back
     except ValueError as error:
         sys.exit(str(error))
     dots = stack(*parts)  # all parts in one picture, for the preview and the sizes
@@ -431,7 +439,7 @@ def main() -> None:
         dots.save(args.preview, format="PNG")
         print(f"Preview saved to {args.preview} ({size}).")
         return
-    print(f"Picture: {size}.")
+    print(f"Picture: {size}, darkness {args.darkness}.")
     with open_connection(printer, address) as sock:
         start = time.monotonic()
         answer = send_job(sock, job)  # waits until the printer has read the whole job

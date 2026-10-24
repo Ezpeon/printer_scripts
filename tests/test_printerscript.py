@@ -264,7 +264,9 @@ def test_command_line_messages():
         for option, bad, message in [("--clean_light", "100", "from 0 to 99"),
                                      ("--clean_light", "abc", "expected a number"),
                                      ("--contrast", "50", "from 0 to 49"),
-                                     ("--contrast", "abc", "expected a number")]:
+                                     ("--contrast", "abc", "expected a number"),
+                                     ("--darkness", "0", "between 1 and 40"),
+                                     ("--darkness", "41", "between 1 and 40")]:
             result = run_script("--test_page", option, bad, "--preview", str(folder / "x.png"))
             assert result.returncode == 2 and message in result.stderr, result.stderr
 

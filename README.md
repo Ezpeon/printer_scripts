@@ -73,6 +73,7 @@ Extra options:
 | `--font file.ttf` | Another font for text. Default: Arial (Windows), DejaVu Sans (Linux). |
 | `--qr_caption` | With `--qr`: also prints the text under the code. |
 | `--address AA:BB:CC:DD:EE:FF` | The printer's address, instead of `--printer_name`. |
+| `--darkness 20` | How long the printer heats each dot, 1–40: higher is darker, but slower and uses more battery. Default 15. Only visible on paper, not in `--preview`. |
 | `--width 576` | For printers with a 576-dot head. Default 384 (48 mm wide). |
 | `--devices_file my.txt` | Another list than `paired_devices.txt`. |
 
