@@ -46,6 +46,11 @@ python printerscript.py --image cat.jpg --preview out.png
 printer has taken the print in, often before the paper is done, and a new print cuts off the
 one still printing.
 
+**A picture longer than about 25 cm gets cut off** (a tall image, or a long text). The
+tested printer holds about 28 cm of print in its memory, and one picture can't be bigger.
+`--preview` shows the length before you print, and `--landscape` makes a tall picture
+shorter.
+
 | Option | What it prints |
 |---|---|
 | `--image cat.jpg` | A jpg or png, scaled to the paper's width. Greys become patterns of black dots. |
