@@ -312,6 +312,9 @@ def main() -> None:
     if (args.suggest or args.auto) and (args.channel or args.contrast is not None):
         parser.error("--suggest and --auto try every --channel and --contrast themselves: "
                      "leave them out")
+    if args.suggest and args.preview is not None:
+        parser.error("--suggest only shows the scores: to save a preview of its pick, use "
+                     "--auto --preview")
     if args.self_test and args.clean_light:
         parser.error("--clean_light doesn't apply to --self_test: it has no photos")
     if args.self_test and args.contrast is not None:

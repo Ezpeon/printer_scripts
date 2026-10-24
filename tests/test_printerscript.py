@@ -205,7 +205,9 @@ def test_command_line_suggest():
                               (["--image", str(colours), "--suggest", "--channel", "red"],
                                "leave them out"),
                               (["--image", str(colours), "--suggest", "--auto"],
-                               "not allowed with")]:
+                               "not allowed with"),
+                              (["--image", str(colours), "--suggest", "--preview", "x.png"],
+                               "use --auto --preview")]:
             result = run_script(*args)
             assert result.returncode == 2 and message in result.stderr, (args, result.stderr)
 
