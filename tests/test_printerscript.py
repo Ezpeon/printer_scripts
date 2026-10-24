@@ -160,6 +160,26 @@ def test_command_line_contrast():
             assert saved.getpixel((0, 0)) == 0 and saved.getpixel((0, 99)) == 255
 
 
+def test_command_line_channel():
+    with tempfile.TemporaryDirectory() as folder:
+        folder = Path(folder)
+        # Pure red is all red and no blue: all white with --channel red, all black with blue.
+        red = folder / "red.png"
+        Image.new("RGB", (384, 20), (255, 0, 0)).save(red)
+        for channel, colour in [("red", 255), ("blue", 0)]:
+            preview = folder / "preview.png"
+            result = run_script("--image", str(red), "--channel", channel,
+                                "--preview", str(preview))
+            assert result.returncode == 0, result.stderr
+            with Image.open(preview) as saved:
+                assert saved.getextrema() == (colour, colour), channel
+        for args, message in [(["--test_page", "--channel", "red"],
+                               "only works together with --image"),
+                              (["--image", str(red), "--channel", "purple"], "invalid choice")]:
+            result = run_script(*args, "--preview", str(folder / "x.png"))
+            assert result.returncode == 2 and message in result.stderr, (args, result.stderr)
+
+
 def test_command_line_messages():
     with tempfile.TemporaryDirectory() as folder:
         folder = Path(folder)

@@ -60,6 +60,22 @@ def test_transparent_png_prints_white():
         Image.new("RGBA", (16, 8), (0, 0, 0, 0)).save(path)  # black, but fully transparent
         # getextrema() gives (darkest, lightest) pixel: (255, 255) means everything is white.
         assert pictures.open_picture(path).getextrema() == (255, 255)
+        assert pictures.open_picture(path, "red").getextrema() == (255, 255)  # also with --channel
+
+
+def test_channel_separates_colours_of_the_same_brightness():
+    """open_picture()'s example: a pale red and a blue-grey from a game screenshot get almost
+    the same grey in the usual mix, but clearly different ones in the red channel."""
+    with tempfile.TemporaryDirectory() as folder:
+        path = Path(folder) / "two_colours.png"
+        colours = Image.new("RGB", (2, 1))
+        colours.putpixel((0, 0), (96, 64, 64))
+        colours.putpixel((1, 0), (68, 71, 85))
+        colours.save(path)
+        assert list(pictures.open_picture(path).tobytes()) == [74, 72]
+        assert list(pictures.open_picture(path, "red").tobytes()) == [96, 68]
+        assert list(pictures.open_picture(path, "green").tobytes()) == [64, 71]
+        assert list(pictures.open_picture(path, "blue").tobytes()) == [64, 85]
 
 
 def test_16_bit_png_keeps_its_greys():
@@ -71,6 +87,8 @@ def test_16_bit_png_keeps_its_greys():
             greys.putpixel((x, 0), grey * 257)  # the 16-bit version of 0, 128 and 255
         greys.save(path)
         assert list(pictures.open_picture(path).tobytes()) == [0, 128, 255]
+        # A grey picture has the same value in every channel.
+        assert list(pictures.open_picture(path, "blue").tobytes()) == [0, 128, 255]
 
 
 def test_sideways_phone_photo_is_turned():

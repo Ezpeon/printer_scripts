@@ -11,9 +11,15 @@ from pathlib import Path
 
 from PIL import Image, ImageDraw, ImageFont, ImageOps
 
+# open_picture()'s channels -> Pillow's names for the colour channels of an RGB picture.
+CHANNELS = {"red": "R", "green": "G", "blue": "B"}
 
-def open_picture(path: Path) -> Image.Image:
+
+def open_picture(path: Path, channel: str | None = None) -> Image.Image:
     """Open a jpg/png as a greyscale picture: mode "L", one byte per pixel, 0 = black.
+
+    `channel` ("red", "green" or "blue") makes the greys from that colour alone, instead of
+    the usual mix of all three (why: at the end of this function).
 
     Raises FileNotFoundError, or PIL.UnidentifiedImageError if it isn't a picture.
     """
@@ -34,7 +40,12 @@ def open_picture(path: Path) -> Image.Image:
         paper = Image.new("RGBA", picture.size, "white")
         picture = Image.alpha_composite(paper, picture)
     # Pillow's greyscale is 29.9 % red + 58.7 % green + 11.4 % blue, the usual mix: our eyes
-    # are most sensitive to green.
+    # are most sensitive to green. But two different colours can get the same grey that way,
+    # and then they merge on paper. Example from a game screenshot: a pale red background
+    # (red 96, green 64, blue 64) and a blue-grey stone (68, 71, 85) both become grey 72-74.
+    # Their red values differ, 96 and 68: with channel "red", the grey is the red value alone.
+    if channel is not None:
+        return picture.convert("RGB").getchannel(CHANNELS[channel])
     return picture.convert("L")
 
 

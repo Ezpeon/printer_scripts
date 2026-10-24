@@ -39,7 +39,7 @@ from PIL import ImageFont, UnidentifiedImageError
 
 from src.devices import ADDRESS_RE, DEFAULT_FILE, find_address, read_devices_file
 from src.escpos import DEFAULT_WIDTH, HEAD_WIDTHS, print_job
-from src.pictures import make_test_page, open_picture, prepare_picture, stack, turn_to
+from src.pictures import CHANNELS, make_test_page, open_picture, prepare_picture, stack, turn_to
 from src.printer import ERRORS, QUESTIONS, ask, connect, error_text, send_job
 from src.qr import QR_BORDER, make_qr_picture, qr_dots_per_square, qr_matrix
 from src.self_test import self_test_parts
@@ -142,7 +142,7 @@ def main() -> None:
                "  printerscript.py --printer_name YHK-T201 --status\n"
                "  printerscript.py --image cat.jpg --preview cat_preview.png\n"
                "  printerscript.py --image drawing.png --clean_light 10 --preview drawing.png\n"
-               "  printerscript.py --image screenshot.png --contrast 1 --preview screenshot.png\n"
+               "  printerscript.py --image game.png --channel red --contrast 1 --preview out.png\n"
                "  printerscript.py --image wide_photo.jpg --portrait --preview photo.png\n"
                '  printerscript.py --text "Shopping:\\nmilk\\neggs" --preview list.png\n'
                "  printerscript.py --text_file list.txt --preview list.png\n"
@@ -200,6 +200,10 @@ def main() -> None:
                              "doesn't print as one dot pattern: the darkest and lightest "
                              "PERCENT %% become pure black and white (e.g. 1; 0 stretches "
                              "from the darkest pixel to the lightest; default: off)")
+    parser.add_argument("--channel", choices=list(CHANNELS),
+                        help="with --image: make the greys from this colour alone, instead "
+                             "of the usual mix of all three, for pictures where two "
+                             "different colours print as the same grey")
     # Mutually exclusive: argparse itself refuses "--portrait --landscape" with a message.
     shape = parser.add_mutually_exclusive_group()
     shape.add_argument("--portrait", action="store_true",
@@ -238,6 +242,8 @@ def main() -> None:
         parser.error("--qr_caption only works together with --qr")
     if (args.portrait or args.landscape) and args.image is None:
         parser.error("--portrait and --landscape only work together with --image")
+    if args.channel and args.image is None:
+        parser.error("--channel only works together with --image")
     if args.self_test and args.clean_light:
         parser.error("--clean_light doesn't apply to --self_test: it has no photos")
     if args.self_test and args.contrast is not None:
@@ -310,7 +316,7 @@ def main() -> None:
         print(f"Solution of sudoku {sudoku.id} ({sudoku.difficulty}).")
     else:
         try:
-            picture = open_picture(args.image)
+            picture = open_picture(args.image, args.channel)
         except FileNotFoundError:
             sys.exit(f"{args.image} doesn't exist.")
         except UnidentifiedImageError:
