@@ -7,6 +7,7 @@ exit codes. Everything else lives here, one module per topic:
     escpos.py          the bytes the printer understands: picture commands, the whole print job
     printer.py         the Bluetooth connection: asking the printer questions, sending a job
     pictures.py        a jpg/png -> black-and-white dots; the test page
+    suggest.py         which --channel and --contrast print a colour picture most clearly
     text.py            text (typed or from a file) -> a picture; fonts
     qr.py              text -> a QR code picture (with the segno library)
     sudoku.py          sudoku puzzles (9 x 9 and 6 x 6) with IDs, their solutions, drawing

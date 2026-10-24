@@ -1,7 +1,9 @@
 """Pictures: from a jpg/png file to black-and-white dots, plus the built-in test page.
 
-The pictures here are Pillow pictures in one of two modes:
-- "L", greyscale: one byte per pixel, 0 = black, 255 = white. Everything starts as this.
+The pictures here are Pillow pictures in one of three modes:
+- "RGB", colour: what a jpg/png is opened as, by open_colour_picture().
+- "L", greyscale: one byte per pixel, 0 = black, 255 = white. to_grey() makes it from the
+  colours; text, QR codes and the test page are drawn in it directly.
 - "1", black-and-white dots: what the printer prints. prepare_picture() makes them.
 """
 
@@ -11,15 +13,20 @@ from pathlib import Path
 
 from PIL import Image, ImageDraw, ImageFont, ImageOps
 
-# open_picture()'s channels -> Pillow's names for the colour channels of an RGB picture.
+# to_grey()'s channels -> Pillow's names for the colour channels of an RGB picture.
 CHANNELS = {"red": "R", "green": "G", "blue": "B"}
 
 
 def open_picture(path: Path, channel: str | None = None) -> Image.Image:
-    """Open a jpg/png as a greyscale picture: mode "L", one byte per pixel, 0 = black.
+    """Open a jpg/png as a greyscale picture: open_colour_picture(), then to_grey()."""
+    return to_grey(open_colour_picture(path), channel)
 
-    `channel` ("red", "green" or "blue") makes the greys from that colour alone, instead of
-    the usual mix of all three (why: at the end of this function).
+
+def open_colour_picture(path: Path) -> Image.Image:
+    """Open a jpg/png as a colour picture (mode "RGB"), upright, with transparent parts white.
+
+    A grey picture becomes RGB with the same value in all three channels, so to_grey() gives
+    back exactly the same greys.
 
     Raises FileNotFoundError, or PIL.UnidentifiedImageError if it isn't a picture.
     """
@@ -39,13 +46,22 @@ def open_picture(path: Path, channel: str | None = None) -> Image.Image:
         picture = picture.convert("RGBA")
         paper = Image.new("RGBA", picture.size, "white")
         picture = Image.alpha_composite(paper, picture)
+    return picture.convert("RGB")
+
+
+def to_grey(picture: Image.Image, channel: str | None = None) -> Image.Image:
+    """Colour picture -> greyscale picture (mode "L", one byte per pixel, 0 = black).
+
+    `channel` ("red", "green" or "blue") makes the greys from that colour alone, instead of
+    the usual mix of all three.
+    """
     # Pillow's greyscale is 29.9 % red + 58.7 % green + 11.4 % blue, the usual mix: our eyes
     # are most sensitive to green. But two different colours can get the same grey that way,
     # and then they merge on paper. Example from a game screenshot: a pale red background
     # (red 96, green 64, blue 64) and a blue-grey stone (68, 71, 85) both become grey 72-74.
     # Their red values differ, 96 and 68: with channel "red", the grey is the red value alone.
     if channel is not None:
-        return picture.convert("RGB").getchannel(CHANNELS[channel])
+        return picture.getchannel(CHANNELS[channel])
     return picture.convert("L")
 
 

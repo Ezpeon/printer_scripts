@@ -58,7 +58,8 @@ Extra options:
 |---|---|
 | `--clean_light 10` | With `--image`: turns near-white greys white, so a drawing's light background doesn't print as scattered dots. Default 0 (off), which keeps the texture of photos. |
 | `--contrast 1` | With `--image`: spreads the greys from black to white, so a dark or flat picture (a dark game screenshot, a beige coin on a beige wall) doesn't print as one dot pattern. The darkest and lightest 1 % become pure black and white; 0 stretches from the darkest pixel to the lightest. Default: off. |
-| `--channel red` | With `--image`: makes the greys from one colour (`red`, `green` or `blue`) instead of the usual mix of all three. For pictures where two different colours print as the same grey: a pale red background and a blue-grey stone are both about 73 in the usual mix, but 96 and 68 in red. Try each colour with `--preview` and compare. |
+| `--channel red` | With `--image`: makes the greys from one colour (`red`, `green` or `blue`) instead of the usual mix of all three. For pictures where two different colours print as the same grey: a pale red background and a blue-grey stone are both about 73 in the usual mix, but 96 and 68 in red. Try each colour with `--preview` and compare, or use `--suggest`. |
+| `--suggest` | With `--image`: prints nothing, but tries every `--channel` and `--contrast` setting and lists the best ones, with a score from 0 to 1: how much of the picture's colour differences stay visible on paper. |
 | `--portrait` | With `--image`: turns a wide picture a quarter turn clockwise, so its short side goes across the paper. It prints bigger, on more paper. A tall or square picture stays as it is. |
 | `--landscape` | With `--image`: the opposite. Turns a tall picture, so its long side goes across: smaller, on less paper. |
 | `--text_size 48` | Letter size for `--text`, `--text_file` and `--qr_caption`, in dots (8 dots = 1 mm). Default 32. |
@@ -89,6 +90,10 @@ python printerscript.py --printer_name YHK-T201 --status
 - Everything is printed as a picture: 384 black-and-white dots per row, sent with the
   standard ESC/POS raster command `GS v 0`. Text, QR codes and sudokus are drawn first.
 - Greys become patterns of black dots (Floyd–Steinberg dithering).
+- `--suggest` scores each setting with the contrast-preserving measures of Lu, Xu and Jia
+  (CCPR and CCFR, from their papers on "contrast preserving decolorization"): of the pixel
+  pairs whose colours look different, how many still look different in the printed dots,
+  and how many differences on paper are really in the picture. Details: `src/suggest.py`.
 
 ## License
 

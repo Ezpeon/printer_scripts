@@ -180,6 +180,29 @@ def test_command_line_channel():
             assert result.returncode == 2 and message in result.stderr, (args, result.stderr)
 
 
+def test_command_line_suggest():
+    with tempfile.TemporaryDirectory() as folder:
+        folder = Path(folder)
+        # test_suggest.py's picture: a pale red and a blue-grey with the same grey, between
+        # a black and a white stripe. The best setting is the red channel. Nothing is printed
+        # or saved, and no printer is needed.
+        colours = folder / "colours.png"
+        picture = Image.new("RGB", (384, 200), (96, 64, 64))
+        picture.paste((68, 71, 85), (192, 0, 384, 200))
+        picture.paste((0, 0, 0), (0, 0, 384, 20))
+        picture.paste((255, 255, 255), (0, 180, 384, 200))
+        picture.save(colours)
+        result = run_script("--image", str(colours), "--suggest")
+        assert result.returncode == 0, result.stderr
+        assert "Best: --channel red." in result.stdout, result.stdout
+        assert list(folder.iterdir()) == [colours]
+        for args, message in [(["--test_page", "--suggest"], "only works together with --image"),
+                              (["--image", str(colours), "--suggest", "--channel", "red"],
+                               "leave them out")]:
+            result = run_script(*args)
+            assert result.returncode == 2 and message in result.stderr, (args, result.stderr)
+
+
 def test_command_line_messages():
     with tempfile.TemporaryDirectory() as folder:
         folder = Path(folder)

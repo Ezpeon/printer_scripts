@@ -39,11 +39,13 @@ from PIL import ImageFont, UnidentifiedImageError
 
 from src.devices import ADDRESS_RE, DEFAULT_FILE, find_address, read_devices_file
 from src.escpos import DEFAULT_WIDTH, HEAD_WIDTHS, print_job
-from src.pictures import CHANNELS, make_test_page, open_picture, prepare_picture, stack, turn_to
+from src.pictures import (CHANNELS, make_test_page, open_colour_picture, prepare_picture, stack,
+                          to_grey, turn_to)
 from src.printer import ERRORS, QUESTIONS, ask, connect, error_text, send_job
 from src.qr import QR_BORDER, make_qr_picture, qr_dots_per_square, qr_matrix
 from src.self_test import self_test_parts
 from src.sudoku import DIFFICULTIES, make_sudoku_picture, new_sudoku, parse_id, sudoku_from_id
+from src.suggest import Setting, best_setting, rank_settings
 from src.text import (DEFAULT_TEXT_SIZE, font_name, load_font, make_text_picture,
                       missing_characters, read_text_file)
 
@@ -112,6 +114,29 @@ def font_for(text: str, args: argparse.Namespace) -> ImageFont.FreeTypeFont:
     return font
 
 
+def options_text(setting: Setting) -> str:
+    """A setting as command-line options, e.g. "--channel red --contrast 1", or "no options"."""
+    options = []
+    if setting.channel is not None:
+        options.append(f"--channel {setting.channel}")
+    if setting.contrast is not None:
+        options.append(f"--contrast {setting.contrast:g}")
+    return " ".join(options) or "no options"
+
+
+def show_suggestions(settings: list[Setting]) -> None:
+    """--suggest: the 5 best settings, the usual one (no options) to compare, and the pick."""
+    print("Score: how much of the picture's colour differences stay visible on paper, from 0 "
+          "to 1. Black dots: less prints faster and uses less battery.")
+    print("  score  black dots  options")
+    usual = next(s for s in settings if s.channel is None and s.contrast is None)
+    shown = settings[:5] + ([usual] if usual not in settings[:5] else [])
+    for setting in shown:
+        print(f"  {setting.score:5.2f}  {setting.black:10.0%}  {options_text(setting)}")
+    print(f"Best: {options_text(best_setting(settings))}. (Scores within 0.02 of the top look "
+          "the same on paper: of those, the one with the fewest options.)")
+
+
 def percent_option(text: str, below: float = 100) -> float:
     """Check a percentage option's value for argparse: a number from 0 up to (not including)
     `below`. That's 100 for --clean_light, and 50 for --contrast."""
@@ -142,6 +167,7 @@ def main() -> None:
                "  printerscript.py --printer_name YHK-T201 --status\n"
                "  printerscript.py --image cat.jpg --preview cat_preview.png\n"
                "  printerscript.py --image drawing.png --clean_light 10 --preview drawing.png\n"
+               "  printerscript.py --image game.png --suggest\n"
                "  printerscript.py --image game.png --channel red --contrast 1 --preview out.png\n"
                "  printerscript.py --image wide_photo.jpg --portrait --preview photo.png\n"
                '  printerscript.py --text "Shopping:\\nmilk\\neggs" --preview list.png\n'
@@ -204,6 +230,10 @@ def main() -> None:
                         help="with --image: make the greys from this colour alone, instead "
                              "of the usual mix of all three, for pictures where two "
                              "different colours print as the same grey")
+    parser.add_argument("--suggest", action="store_true",
+                        help="with --image: don't print, but try every --channel and "
+                             "--contrast setting and show which keep the most of the "
+                             "picture's colour differences visible on paper")
     # Mutually exclusive: argparse itself refuses "--portrait --landscape" with a message.
     shape = parser.add_mutually_exclusive_group()
     shape.add_argument("--portrait", action="store_true",
@@ -232,7 +262,7 @@ def main() -> None:
     args = parser.parse_args()
     if args.status and args.preview is not None:
         parser.error("--status asks the printer questions: it has nothing to preview")
-    if args.preview is None and not (args.printer_name or args.address):
+    if args.preview is None and not args.suggest and not (args.printer_name or args.address):
         parser.error("say which printer (--printer_name or --address), or use --preview")
     if args.text is not None and not args.text.strip():
         parser.error("--text is empty")
@@ -244,6 +274,10 @@ def main() -> None:
         parser.error("--portrait and --landscape only work together with --image")
     if args.channel and args.image is None:
         parser.error("--channel only works together with --image")
+    if args.suggest and args.image is None:
+        parser.error("--suggest only works together with --image")
+    if args.suggest and (args.channel or args.contrast is not None):
+        parser.error("--suggest tries every --channel and --contrast itself: leave them out")
     if args.self_test and args.clean_light:
         parser.error("--clean_light doesn't apply to --self_test: it has no photos")
     if args.self_test and args.contrast is not None:
@@ -252,7 +286,7 @@ def main() -> None:
         parser.error(f"--text_size must be between 6 and 400 dots, got {args.text_size}")
 
     # Look the printer up first, so a typo in its name doesn't wait for the picture.
-    if args.preview is None:
+    if args.preview is None and not args.suggest:
         printer, address = printer_address(args)
     if args.status:
         print_status(printer, address)
@@ -316,15 +350,20 @@ def main() -> None:
         print(f"Solution of sudoku {sudoku.id} ({sudoku.difficulty}).")
     else:
         try:
-            picture = open_picture(args.image, args.channel)
+            colour = open_colour_picture(args.image)
         except FileNotFoundError:
             sys.exit(f"{args.image} doesn't exist.")
         except UnidentifiedImageError:
             sys.exit(f"{args.image} isn't a picture this script can open (use a jpg or png).")
-        # After open_picture(), so a sideways phone photo is already upright (EXIF) and
+        # After open_colour_picture(), so a sideways phone photo is already upright (EXIF) and
         # "wide" or "tall" means what you see on screen.
         if args.portrait or args.landscape:
-            picture = turn_to(picture, "portrait" if args.portrait else "landscape")
+            colour = turn_to(colour, "portrait" if args.portrait else "landscape")
+        # After turning, which changes how much the picture is shrunk, so the scores too.
+        if args.suggest:
+            show_suggestions(rank_settings(colour, args.width, args.clean_light))
+            return
+        picture = to_grey(colour, args.channel)
     if picture is not None:
         parts = [prepare_picture(picture, args.width, args.clean_light, args.contrast)]
     try:
